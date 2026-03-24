@@ -2,17 +2,27 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <AHT20.h>
+#include "wifi.h"
 
-#define LCD_ADDRESS   0x27
-#define LCD_CMD_LIGHT 0x10
-
-const char* ssid = "Eris";
-const char* password = "***";
-
-LiquidCrystal_I2C lcd(16, 2);
 AHT20 aht20;
+LiquidCrystal_I2C lcd(16, 2);
 
 void setup() {
+  // debug
+  Serial.begin(115200);
+
+  // WiFi
+  WiFi.mode(WIFI_STA); 
+  WiFi.begin(wifi_sid, wifi_password);
+  WiFi.printDiag(Serial);
+  
+  // i2c
+  Wire.begin();
+  
+  // sensor
+  aht20.begin();
+
+  // display
   lcd.begin();
   lcd.backlight();
 
@@ -21,23 +31,6 @@ void setup() {
 
   lcd.setCursor(0, 1);
   lcd.print("Second line");
-
-  Serial.begin(115200);
-
-  WiFi.mode(WIFI_STA); 
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected. IP: " + WiFi.localIP().toString());
-
-  lcd.setCursor(0, 1);
-  lcd.print("IP " + WiFi.localIP().toString());
-
-  Wire.begin();
-  aht20.begin();
 }
 
 void loop() {
@@ -51,4 +44,9 @@ void loop() {
 
   lcd.setCursor(0, 1);
   lcd.print("Humidy: " + String(humidity, 3) + " %");
+
+  if (WiFi.status() == WL_CONNECTED) {
+    lcd.setCursor(0, 1);
+    lcd.print("IP " + WiFi.localIP().toString());
+  }
 }
