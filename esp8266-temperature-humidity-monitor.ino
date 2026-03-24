@@ -5,16 +5,34 @@
 #include <SSD1306Spi.h>
 #include <NTPClient.h>
 #include <time.h>
+#include <ESP8266TimerInterrupt.h>
+#include <PubSubClient.h>
 #include "wifi.h"
 
 const long utcOffsetInSeconds = 4 * 60 * 60;
-//char daysOfTheWeek[7][] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+char daysOfweek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 AHT20 aht20;
 SSD1306Spi display(D0, D4, D8, GEOMETRY_128_64);
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", utcOffsetInSeconds);
+
+time_t unixTime;
+long timeSync;
+
+ESP8266Timer InterruptTimer;
+
+WiFiClient wifiClient;
+PubSubClient pubSubClient(wifiClient);
+
+const char *mqtt_hostname = "mercury.home.lan";
+const char *mqtt_topic_temperature = "sensors/kitchen/temperature";  // MQTT topic 
+const int mqtt_port = 1883;  // MQTT port (TCP)
+
+ICACHE_RAM_ATTR void TimerHandler() {
+  unixTime++;
+}
 
 void setup() {
   // debug
@@ -35,11 +53,15 @@ void setup() {
   display.init();
   display.flipScreenVertically();
   display.setFont(ArialMT_Plain_10);
+
+  // Timer
+  InterruptTimer.attachInterruptInterval(1000000, TimerHandler);
+
+  // mqtt
+  pubSubClient.setServer(mqtt_hostname, mqtt_port);
 }
 
 void loop() {
-  delay(2000);
-
   float temperature = aht20.getTemperature();
   float humidity = aht20.getHumidity();
 
@@ -48,24 +70,37 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     display.drawString(0, 0, "IP: " + WiFi.localIP().toString());
 
-    timeClient.update();
+    if (timeSync == 0 && timeClient.update()) {
+      Serial.println("Sync time...");
+      unixTime = timeClient.getEpochTime();
+      timeSync = 12 * 1800; // 12 hours
+    } else {
+      timeSync--;
+    }
 
-    time_t time = timeClient.getEpochTime();
-
-    struct tm * ti;
-    ti = localtime(&time);
-    
-    char date_value[13];
-    strftime(date_value, 13, "%d/%m/%Y", ti);
-
-    char date_str[20] = "Date: ";
-
-    display.drawString(0, 10, strcat(date_str, date_value));
-    display.drawString(0, 20, "Time: " + timeClient.getFormattedTime());
+    if (!pubSubClient.connected()) {
+      //pubSubClient.connect();
+    }
+    //pubSubClient.loop();
+  } else {
+    display.drawString(0, 0, "IP: Disconnected...");
   }
 
-  display.drawString(0, 30, "Temperature: " + String(temperature, 3) + "°C");
-  display.drawString(0, 40, "Humidity: " + String(humidity, 3) + "%");
+  // time
+  struct tm* ti = localtime(&unixTime);
+  char buffer[20];
+
+  // date
+  char date[13];
+  strftime(date, 13, "%d/%m/%Y", ti);
+
+  display.drawStringf(0, 10, buffer, "Date: %s", date);
+  display.drawStringf(0, 20, buffer, "Week: %s", daysOfweek[timeClient.getDay()]);
+  display.drawString(0, 30, "Time: " + timeClient.getFormattedTime());
+  display.drawString(0, 40, "Temperature: " + String(temperature, 3) + "°C");
+  display.drawString(0, 50, "Humidity: " + String(humidity, 3) + "%");
 
   display.display();
+
+  delay(2000);
 }
