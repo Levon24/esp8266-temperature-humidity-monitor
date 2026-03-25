@@ -26,9 +26,11 @@ ESP8266Timer InterruptTimer;
 WiFiClient wifiClient;
 PubSubClient pubSubClient(wifiClient);
 
-const char *mqtt_hostname = "mercury.home.lan";
-const char *mqtt_topic_temperature = "sensors/kitchen/temperature";  // MQTT topic 
-const int mqtt_port = 1883;  // MQTT port (TCP)
+const char *mqttHost = "mercury.home.lan";
+const int mqttPort = 1883;
+const char *mqttTopicTemperature = "sensors/kitchen/temperature";
+const char *mqttTopicHumidity = "sensors/kitchen/humidity";
+const char *mqttClientId = "kitchen";
 
 ICACHE_RAM_ATTR void TimerHandler() {
   unixTime++;
@@ -40,7 +42,7 @@ void setup() {
 
   // WiFi
   WiFi.mode(WIFI_STA); 
-  WiFi.begin(wifi_sid, wifi_password);
+  WiFi.begin(wifiSid, wifiPassword);
   WiFi.printDiag(Serial);
   
   // i2c
@@ -58,7 +60,7 @@ void setup() {
   InterruptTimer.attachInterruptInterval(1000000, TimerHandler);
 
   // mqtt
-  pubSubClient.setServer(mqtt_hostname, mqtt_port);
+  pubSubClient.setServer(mqttHost, mqttPort);
 }
 
 void loop() {
@@ -75,15 +77,30 @@ void loop() {
       unixTime = timeClient.getEpochTime();
       timeSync = 12 * 1800; // 12 hours
     } else {
-      timeSync--;
+      if (timeSync > 0) {
+        timeSync--;
+      }
     }
 
-    if (!pubSubClient.connected()) {
-      //pubSubClient.connect();
+    if (pubSubClient.connect(mqttClientId)) {
+      char payload[10];
+
+      snprintf(payload, sizeof(payload), "%.5f", temperature);
+      if (pubSubClient.publish(mqttTopicTemperature, payload)) {
+        //Serial.println("MQTT Temperature send");
+        delay(1000);
+      }
+
+      snprintf(payload, sizeof(payload), "%.5f", humidity);
+      if (pubSubClient.publish(mqttTopicHumidity, payload)) {
+        //Serial.println("MQTT Humidity send");
+        delay(1000);
+      }
+      
+      pubSubClient.disconnect();
     }
-    //pubSubClient.loop();
   } else {
-    display.drawString(0, 0, "IP: Disconnected...");
+    display.drawString(0, 0, "IP: Disconnected");
   }
 
   // time
