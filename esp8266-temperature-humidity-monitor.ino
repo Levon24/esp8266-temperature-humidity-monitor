@@ -39,6 +39,9 @@ ICACHE_RAM_ATTR void TimerHandler() {
   unixTime++;
 }
 
+/**
+ * Initialization
+ */
 void setup() {
   // debug
   Serial.begin(115200);
@@ -65,9 +68,14 @@ void setup() {
   pubSubClient.setServer(mqttHost, mqttPort);
 }
 
+/**
+ * Forewer loop
+ */
 void loop() {
   float temperature = aht20.getTemperature();
   float humidity = aht20.getHumidity();
+  bool mqttTemperature = false;
+  bool mqttHumidity = false;
 
   if (WiFi.status() == WL_CONNECTED) {
     if (timeSync == 0 && timeClient.update()) {
@@ -85,12 +93,14 @@ void loop() {
 
       snprintf(payload, sizeof(payload), "%.5f", temperature);
       if (pubSubClient.publish(mqttTopicTemperature, payload)) {
+        mqttTemperature = true;
         //Serial.println("MQTT Temperature send");
         //delay(1000);
       }
 
       snprintf(payload, sizeof(payload), "%.5f", humidity);
       if (pubSubClient.publish(mqttTopicHumidity, payload)) {
+        mqttHumidity = true;
         //Serial.println("MQTT Humidity send");
         //delay(1000);
       }
@@ -104,18 +114,17 @@ void loop() {
  
   // date
   char date[13];
-  strftime(date, 13, "%d/%m/%Y", ti);
+  strftime(date, 13, "%d.%m.%Y", ti);
 
   // display
   display.clearDisplay();
+  display.setFont(&FreeSans12pt7b);
 
   if (WiFi.status() == WL_CONNECTED) {
     display.setTextColor(TFT_GREENYELLOW);
-    display.setTextSize(2);
     display.drawString("IP: " + WiFi.localIP().toString(), 0, 0);
   } else {
     display.setTextColor(TFT_RED);
-    display.setTextSize(2);
     display.drawString("IP: Disconnected", 0, 0);
   }
 
@@ -123,28 +132,32 @@ void loop() {
 
   snprintf(text, sizeof(text), "Date: %s", date);
   display.setTextColor(TFT_CYAN);
-  display.setTextSize(2);
-  display.drawString(text, 0, 16);
+  display.drawString(text, 0, 24);
 
   snprintf(text, sizeof(text), "Week: %s", daysOfweek[timeClient.getDay()]);
   display.setTextColor(TFT_CYAN);
-  display.setTextSize(2);
-  display.drawString(text, 0, 32);
-
-  snprintf(text, sizeof(text), "Time: %s", timeClient.getFormattedTime());
-  display.setTextColor(TFT_GREEN);
-  display.setTextSize(2);
   display.drawString(text, 0, 48);
 
-  snprintf(text, sizeof(text), "Temperature: %.2fC", temperature);
-  display.setTextColor(TFT_YELLOW);
-  display.setTextSize(2);
-  display.drawString(text, 0, 64);
+  snprintf(text, sizeof(text), "Time: %s", timeClient.getFormattedTime());
+  display.setTextColor(TFT_CYAN);
+  display.drawString(text, 0, 72);
 
-  snprintf(text, sizeof(text), "Humidity: %.2f%%", humidity);
+  display.setFont(&DejaVu56);
+  snprintf(text, sizeof(text), "%.2f C", temperature);
+  display.setTextColor(TFT_YELLOW);
+  display.drawString(text, 0, 96);
+
+  snprintf(text, sizeof(text), "%.2f %%", humidity);
   display.setTextColor(TFT_WHITE);
-  display.setTextSize(2);
-  display.drawString(text, 0, 80);
+  display.drawString(text, 0, 152);
+
+  display.setFont(&FreeSerif9pt7b);
+
+  snprintf(text, sizeof(text), "MQTT Temperature: %s", mqttTemperature ? "true" : "false");
+  display.drawString(text, 0, 208);
+
+  snprintf(text, sizeof(text), "MQTT Humidity: %s", mqttHumidity ? "true" : "false");
+  display.drawString(text, 0, 224);
 
   delay(2000);
 }
