@@ -6,7 +6,7 @@
 #include <time.h>
 #include <ESP8266TimerInterrupt.h>
 #include <PubSubClient.h>
-#include "LGFX.hpp"
+#include <SSD1306Spi.h>
 #include <SPI.h>
 #include "wifi.h"
 
@@ -32,7 +32,7 @@ const char *mqttTopicTemperature = "sensors/kitchen/temperature";
 const char *mqttTopicHumidity = "sensors/kitchen/humidity";
 const char *mqttClientId = "kitchen";
 
-LGFX display;
+SSD1306Spi display(D0, D3, D8, GEOMETRY_128_64);
 
 // Time
 ICACHE_RAM_ATTR void TimerHandler() {
@@ -59,7 +59,7 @@ void setup() {
 
   // display
   display.init();
-  //display.fillScreen(TFT_BLACK);
+  display.flipScreenVertically();
   
   // Timer
   InterruptTimer.attachInterruptInterval(1000000, TimerHandler);
@@ -74,12 +74,15 @@ void setup() {
 void loop() {
   float temperature = aht20.getTemperature();
   float humidity = aht20.getHumidity();
-  bool mqttTemperature = false;
-  bool mqttHumidity = false;
+
+  display.clear();
+  display.setFont(ArialMT_Plain_10);
 
   if (WiFi.status() == WL_CONNECTED) {
+    display.drawString(0, 0, "IP: " + WiFi.localIP().toString());
+
     if (timeSync == 0 && timeClient.update()) {
-      Serial.println("Sync time...");
+      Serial.println("Sync time.");
       unixTime = timeClient.getEpochTime();
       timeSync = 12 * 1800; // 12 hours
     } else {
@@ -93,71 +96,32 @@ void loop() {
 
       snprintf(payload, sizeof(payload), "%.5f", temperature);
       if (pubSubClient.publish(mqttTopicTemperature, payload)) {
-        mqttTemperature = true;
         //Serial.println("MQTT Temperature send");
         //delay(1000);
       }
 
       snprintf(payload, sizeof(payload), "%.5f", humidity);
       if (pubSubClient.publish(mqttTopicHumidity, payload)) {
-        mqttHumidity = true;
         //Serial.println("MQTT Humidity send");
         //delay(1000);
       }
       
       pubSubClient.disconnect();
     }
-  }
-
-  // time
-  struct tm* ti = localtime(&unixTime);
- 
-  // date
-  char date[13];
-  strftime(date, 13, "%d.%m.%Y", ti);
-
-  // display
-  display.clearDisplay();
-  display.setFont(&FreeSans12pt7b);
-
-  if (WiFi.status() == WL_CONNECTED) {
-    display.setTextColor(TFT_GREENYELLOW);
-    display.drawString("IP: " + WiFi.localIP().toString(), 0, 0);
   } else {
-    display.setTextColor(TFT_RED);
-    display.drawString("IP: Disconnected", 0, 0);
+    display.drawString(0, 0, "IP: Disconnected");
   }
 
-  char text[24];
+  char text[20];
+  display.setFont(ArialMT_Plain_24);
+  
+  snprintf(text, sizeof(text), "%.4f °C", temperature);
+  display.drawString(0, 12, text);
 
-  snprintf(text, sizeof(text), "Date: %s", date);
-  display.setTextColor(TFT_CYAN);
-  display.drawString(text, 0, 24);
+  snprintf(text, sizeof(text), "%.4f %%", humidity);
+  display.drawString(0, 36, text);
 
-  snprintf(text, sizeof(text), "Week: %s", daysOfweek[timeClient.getDay()]);
-  display.setTextColor(TFT_CYAN);
-  display.drawString(text, 0, 48);
-
-  snprintf(text, sizeof(text), "Time: %s", timeClient.getFormattedTime());
-  display.setTextColor(TFT_CYAN);
-  display.drawString(text, 0, 72);
-
-  display.setFont(&DejaVu56);
-  snprintf(text, sizeof(text), "%.2f C", temperature);
-  display.setTextColor(TFT_YELLOW);
-  display.drawString(text, 0, 96);
-
-  snprintf(text, sizeof(text), "%.2f %%", humidity);
-  display.setTextColor(TFT_WHITE);
-  display.drawString(text, 0, 152);
-
-  display.setFont(&FreeSerif9pt7b);
-
-  snprintf(text, sizeof(text), "MQTT Temperature: %s", mqttTemperature ? "true" : "false");
-  display.drawString(text, 0, 208);
-
-  snprintf(text, sizeof(text), "MQTT Humidity: %s", mqttHumidity ? "true" : "false");
-  display.drawString(text, 0, 224);
+  display.display();
 
   delay(2000);
 }
