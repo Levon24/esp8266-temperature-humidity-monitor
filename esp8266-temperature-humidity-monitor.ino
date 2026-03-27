@@ -10,16 +10,18 @@
 #include <SPI.h>
 #include "wifi.h"
 
-const long utcOffsetInSeconds = 4 * 60 * 60;
+//const long utcOffsetInSeconds = 4 * 60 * 60;
 char daysOfweek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 AHT20 aht20;
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", utcOffsetInSeconds);
+NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 0);
 
 time_t unixTime;
 long timeSync;
+int mqttTick;
+
 
 ESP8266Timer InterruptTimer;
 
@@ -28,8 +30,7 @@ PubSubClient pubSubClient(wifiClient);
 
 const char *mqttHost = "mercury.home.lan";
 const int mqttPort = 1883;
-const char *mqttTopicTemperature = "sensors/kitchen/temperature";
-const char *mqttTopicHumidity = "sensors/kitchen/humidity";
+const char *mqttTopic = "sensors/kitchen";
 const char *mqttClientId = "kitchen";
 
 SSD1306Spi display(D0, D3, D8, GEOMETRY_128_64);
@@ -91,22 +92,21 @@ void loop() {
       }
     }
 
-    if (pubSubClient.connect(mqttClientId)) {
-      char payload[10];
+    if (mqttTick > 12) {
+      if (pubSubClient.connect(mqttClientId)) {
+        char payload[128];
 
-      snprintf(payload, sizeof(payload), "%.5f", temperature);
-      if (pubSubClient.publish(mqttTopicTemperature, payload)) {
-        //Serial.println("MQTT Temperature send");
-        //delay(1000);
+        snprintf(payload, sizeof(payload), "{\"timestamp\": %ld, \"temperature\": %.5f, \"humidity\": %.5f}", (long) unixTime, temperature, humidity);
+        if (pubSubClient.publish(mqttTopic, payload)) {
+          Serial.println("MQTT send");
+          //delay(1000);
+        }
+        
+        pubSubClient.disconnect();
+        mqttTick = 0;
       }
-
-      snprintf(payload, sizeof(payload), "%.5f", humidity);
-      if (pubSubClient.publish(mqttTopicHumidity, payload)) {
-        //Serial.println("MQTT Humidity send");
-        //delay(1000);
-      }
-      
-      pubSubClient.disconnect();
+    } else {
+      mqttTick++;
     }
   } else {
     display.drawString(0, 0, "IP: Disconnected");
