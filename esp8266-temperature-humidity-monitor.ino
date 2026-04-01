@@ -130,7 +130,7 @@ void loop() {
 
   display.setFont(ArialMT_Plain_10);
 
-  snprintf(text, sizeof(text), "Battery: %.2f V -> %.2f %%", batteryVoltage, batteryPercent);
+  snprintf(text, sizeof(text), "Battery: %.2f V > %.2f %%", batteryVoltage, batteryPercent);
   display.drawString(0, 52, text);
 
   display.display();
