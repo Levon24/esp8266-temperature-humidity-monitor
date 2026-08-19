@@ -10,8 +10,9 @@
 #include <SPI.h>
 #include "wifi.h"
 
-#define BATTARY_MAX 4.2
-#define BATTARY_MIN 3.0
+#define BATTERY_MAX   4.2
+#define BATTERY_MIN   3.0
+#define MESURES       15  // 30 sec / 2 sec between mesures
 
 //const long utcOffsetInSeconds = 4 * 60 * 60;
 char daysOfweek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
@@ -23,8 +24,9 @@ NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 0);
 
 time_t unixTime;
 long timeSync;
-int mqttTick;
-
+int mesure;
+float temperatures[MESURES];
+float humidities[MESURES];
 
 ESP8266Timer InterruptTimer;
 
@@ -33,8 +35,8 @@ PubSubClient pubSubClient(wifiClient);
 
 const char *mqttHost = "mercury.home.lan";
 const int mqttPort = 1883;
-const char *mqttTopic = "sensors/kitchen";
-const char *mqttClientId = "kitchen";
+const char *mqttTopic = "sensors/nursery";
+const char *mqttClientId = "esp8266-nursery";
 
 SSD1306Spi display(D0, D3, D8, GEOMETRY_128_64);
 
@@ -80,8 +82,8 @@ void loop() {
   float humidity = aht20.getHumidity();
 
   int batteryValue = analogRead(A0);
-  float batteryVoltage = ((float) batteryValue) * (BATTARY_MAX / 1023.0);
-  float batteryPercent = (batteryVoltage - BATTARY_MIN) * (100.0 / (BATTARY_MAX - BATTARY_MIN));
+  float batteryVoltage = ((float) batteryValue) * (BATTERY_MAX / 1023.0);
+  float batteryPercent = (batteryVoltage - BATTERY_MIN) * (100.0 / (BATTERY_MAX - BATTERY_MIN));
 
   display.clear();
   display.setFont(ArialMT_Plain_10);
@@ -92,28 +94,39 @@ void loop() {
     if (timeSync == 0 && timeClient.update()) {
       Serial.println("Sync time.");
       unixTime = timeClient.getEpochTime();
-      timeSync = 12 * 1800; // 12 hours
+      timeSync = 12 * 1800; // 24 hours
     } else {
       if (timeSync > 0) {
         timeSync--;
       }
     }
 
-    if (mqttTick > 12) {
+    if (mesure >= MESURES) {
       if (pubSubClient.connect(mqttClientId)) {
         char payload[128];
 
-        snprintf(payload, sizeof(payload), "{\"timestamp\": %ld, \"temperature\": %.5f, \"humidity\": %.5f, \"battery\": %.5f}", (long) unixTime, temperature, humidity, batteryVoltage);
+        float t;
+        float h;
+        for (int i = 0; i < MESURES; i++) {
+          t += temperatures[i];
+          h += humidities[i];
+        }
+        t = t / MESURES;
+        h = h / MESURES;
+
+        snprintf(payload, sizeof(payload), "{\"timestamp\": %ld, \"temperature\": %.6f, \"humidity\": %.6f, \"battery\": %.6f}", (long) unixTime, t, h, batteryVoltage);
         if (pubSubClient.publish(mqttTopic, payload)) {
           Serial.println("MQTT send");
           //delay(1000);
         }
         
         pubSubClient.disconnect();
-        mqttTick = 0;
+        mesure = 0;
       }
     } else {
-      mqttTick++;
+      temperatures[mesure] = temperature;
+      humidities[mesure] = humidity;
+      mesure++;
     }
   } else {
     display.drawString(0, 0, "IP: Disconnected");
