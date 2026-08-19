@@ -101,12 +101,16 @@ void loop() {
       }
     }
 
-    if (mesure >= MESURES) {
+    if (mesure < MESURES) {
+      temperatures[mesure] = temperature;
+      humidities[mesure] = humidity;
+      
+      mesure++;
+    } else {
       if (pubSubClient.connect(mqttClientId)) {
         char payload[128];
+        float t, h;
 
-        float t;
-        float h;
         for (int i = 0; i < MESURES; i++) {
           t += temperatures[i];
           h += humidities[i];
@@ -115,18 +119,16 @@ void loop() {
         h = h / MESURES;
 
         snprintf(payload, sizeof(payload), "{\"timestamp\": %ld, \"temperature\": %.6f, \"humidity\": %.6f, \"battery\": %.6f}", (long) unixTime, t, h, batteryVoltage);
+        Serial.print("Payload: ");
+        Serial.println(payload);
         if (pubSubClient.publish(mqttTopic, payload)) {
-          Serial.println("MQTT send");
+          Serial.println("MQTT Send");
           //delay(1000);
         }
-        
+
         pubSubClient.disconnect();
         mesure = 0;
       }
-    } else {
-      temperatures[mesure] = temperature;
-      humidities[mesure] = humidity;
-      mesure++;
     }
   } else {
     display.drawString(0, 0, "IP: Disconnected");
