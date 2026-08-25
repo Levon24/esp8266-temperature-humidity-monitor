@@ -65,6 +65,7 @@ void setup() {
 
   // display
   display.init();
+  display.setBrightness(0x2F);
   display.flipScreenVertically();
   
   // Timer
