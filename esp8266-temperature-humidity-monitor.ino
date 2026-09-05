@@ -33,10 +33,10 @@ ESP8266Timer InterruptTimer;
 WiFiClient wifiClient;
 PubSubClient pubSubClient(wifiClient);
 
-const char *mqttHost = "mercury.home.lan";
+const char *mqttHost = "192.168.4.13";
 const int mqttPort = 1883;
-const char *mqttTopic = "sensors/nursery";
-const char *mqttClientId = "esp8266-nursery";
+const char *mqttTopic = "sensors/kitchen";
+const char *mqttClientId = "esp8266-kitchen";
 
 SSD1306Spi display(D0, D3, D8, GEOMETRY_128_64);
 
@@ -65,7 +65,7 @@ void setup() {
 
   // display
   display.init();
-  display.setBrightness(0x2F);
+  display.setBrightness(0x3F);
   display.flipScreenVertically();
   
   // Timer
