@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <AHT20.h>
+#include <7semi_SHT4x.h>
 #include <NTPClient.h>
 #include <time.h>
 #include <ESP8266TimerInterrupt.h>
@@ -17,7 +17,7 @@
 //const long utcOffsetInSeconds = 4 * 60 * 60;
 char daysOfweek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-AHT20 aht20;
+SHT4x_7semi sensor;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 0);
@@ -35,8 +35,8 @@ PubSubClient pubSubClient(wifiClient);
 
 const char *mqttHost = "192.168.4.13";
 const int mqttPort = 1883;
-const char *mqttTopic = "sensors/kitchen";
-const char *mqttClientId = "esp8266-kitchen";
+const char *mqttTopic = "sensors/hall";
+const char *mqttClientId = "esp8266-hall";
 
 SSD1306Spi display(D0, D3, D8, GEOMETRY_128_64);
 
@@ -61,7 +61,8 @@ void setup() {
   Wire.begin();
   
   // sensor
-  aht20.begin();
+  sensor.begin();
+  sensor.setPrecision(REPEATABILITY_LOW);
 
   // display
   display.init();
@@ -79,8 +80,9 @@ void setup() {
  * Forewer loop
  */
 void loop() {
-  float temperature = aht20.getTemperature();
-  float humidity = aht20.getHumidity();
+  float temperature;// = aht20.getTemperature();
+  float humidity;// = aht20.getHumidity();
+  sensor.readTemperatureHumidity(temperature, humidity);
 
   int batteryValue = analogRead(A0);
   float batteryVoltage = ((float) batteryValue) * (BATTERY_MAX / 1023.0);
